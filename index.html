@@ -1,0 +1,119 @@
+<html>
+    <head>
+        <script>
+            const window = globalThis; // for browser compatibility
+
+            class Xhr {
+                constructor () {
+                    this.headers = {};
+                }
+
+                addEventListener(name, callback){
+                    switch (name) {
+                        case "load":
+                            this.load = callback;
+                    }
+                }
+
+                open(method, url){
+                    this.method = method;
+                    this.url = url;
+                }
+
+                setRequestHeader(name, value){
+                    this.headers[name] = value;
+                }
+
+                async send(body){
+                    console.log("req: " + this.url);
+
+                    var result = await fetch(this.url, {
+                        method: this.method,
+                        headers: this.headers
+                    });
+                    
+                    console.log(result.headers);
+
+                    this.status = result.status;
+                    this.statusText = result.statusText;
+
+                    var responseHeaders = "";
+                    for(var h in result.headers){
+                        responseHeaders += h + ": " + result.headers[h] + "\r\n"
+                    }
+                    this.responseHeaders = responseHeaders;
+
+                    this.response = await result.text();
+                    // this.response = result.body;
+
+                    if(this.load){
+                        console.log("load");
+                        this.load(result.body);
+                    }
+                }
+
+                getAllResponseHeaders(){
+                    return this.responseHeaders;
+                }
+            }
+            window.XMLHttpRequest = Xhr;
+        </script>
+        <script src="elm/elm.js"></script>
+    </head>
+    <body>
+    </body>
+
+    <script>
+
+        var app = Elm.Main.init({});
+
+        app.ports.render.subscribe((doc) => {
+            Window.this.caption = doc.title;
+            var rendered = doc.body.map(render);
+            document.body.patch(rendered);
+        });
+
+        function render(html) {
+            if (typeof html == "string"){
+                return html;
+            } 
+            else {
+                return JSX(html.tag, renderAttributes(html.attributes), html.content.map(render));
+            }
+        }
+
+        function renderAttributes(attributes){
+            var result = {};
+
+            for (var attribute of attributes) {
+                if(attribute.attribute){
+                    result[attribute.name] = attribute.value;
+                }
+                else if(attribute.property){
+                    // ???
+                }
+                else if (attribute.event){
+                    result["on" + attribute.name] = (ev) => {
+                        var r = {};
+                        for (var k in ev){
+                            r[k]=ev[k];
+                        }
+
+                        if(ev.target){
+                            var t = {}
+                            for (var k in ev.target){
+                                t[k]=ev.target[k];
+                            }
+                            r.target = t;
+                        }
+
+                        console.log(r);
+                        app.ports.onEvent.send([attribute.key, r]);
+                    }
+                }
+            }
+
+            return result;
+        }
+    </script>
+</html>
